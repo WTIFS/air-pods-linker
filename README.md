@@ -2,10 +2,19 @@
 
 Small macOS menu-bar and Android apps to connect or disconnect already-paired AirPods.
 Pair the headphones in the operating system's Bluetooth settings first. Initial discovery
-matches names containing “AirPods” (case-insensitive). The saved paired device remains
-selected after renaming; unpairing it allows another AirPods device to be selected.
-When several devices match, the lowest Bluetooth address is selected deterministically.
-There is currently no device picker.
+matches names containing “AirPods” (case-insensitive). When multiple pairs are available,
+the app prefers currently connected AirPods, then the most recently used pair:
+
+- macOS uses the system's most-recent-access date, including usage while the app was closed.
+- Android remembers successful A2DP connections observed while the app is running and
+  saves their order across restarts. Android does not expose historical connection dates;
+  connections made and ended while the app was closed cannot be reconstructed.
+- With no history (or a tie), the saved selection wins, then Bluetooth address order.
+  Only still-paired devices are eligible. The saved device remains eligible after renaming.
+
+To switch your preferred pair, connect it through Bluetooth Settings (with the Android
+app running). The next refresh selects it; future clicks reconnect it after disconnection.
+An in-progress request stays attached to its original device. There is no device picker.
 
 ## macOS
 

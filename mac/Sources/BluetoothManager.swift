@@ -37,7 +37,8 @@ final class BluetoothManager: ObservableObject {
         let saved = UserDefaults.standard.string(forKey: "deviceAddress")
         let device = selectPairedDevice(
             from: paired, savedAddress: saved,
-            address: { $0.addressString }, name: { $0.name }
+            address: { $0.addressString }, name: { $0.name },
+            connected: { $0.isConnected() }, lastUsed: { $0.recentAccessDate() }
         )
         deviceAddress = device?.addressString
         hasDevice = deviceAddress != nil
@@ -70,7 +71,7 @@ final class BluetoothManager: ObservableObject {
             refresh()
             if result.0 != kIOReturnSuccess {
                 errorMessage = "Could not \(result.1 ? "connect" : "disconnect") (\(result.0)). Check Bluetooth Settings and try again."
-            } else if isConnected != result.1 {
+            } else if deviceAddress == address && isConnected != result.1 {
                 errorMessage = "Request sent. Waiting for Bluetooth to update; use Refresh to check."
             }
         }

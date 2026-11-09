@@ -1,13 +1,17 @@
+import Foundation
 import Testing
 @testable import AirPodsLinker
 
 private struct Device: Equatable {
     let address: String?
     let name: String?
+    var connected = false
+    var lastUsed: Date? = nil
 }
 
 private func select(_ devices: [Device], saved: String? = nil) -> Device? {
-    selectPairedDevice(from: devices, savedAddress: saved, address: { $0.address }, name: { $0.name })
+    selectPairedDevice(from: devices, savedAddress: saved, address: { $0.address }, name: { $0.name },
+                       connected: { $0.connected }, lastUsed: { $0.lastUsed })
 }
 
 @Test func staleCacheFallsBackToPairedAirPods() {
@@ -31,4 +35,22 @@ private func select(_ devices: [Device], saved: String? = nil) -> Device? {
     let second = Device(address: "AA:02", name: "AirPods Max")
     #expect(select([second, first]) == first)
     #expect(select([first, second]) == first)
+}
+
+@Test func mostRecentDeviceOverridesSavedSelection() {
+    let old = Device(address: "AA:01", name: "AirPods", lastUsed: Date(timeIntervalSince1970: 10))
+    let recent = Device(address: "AA:02", name: "AirPods Pro", lastUsed: Date(timeIntervalSince1970: 20))
+    #expect(select([old, recent], saved: old.address) == recent)
+}
+
+@Test func connectedDeviceTakesPriorityOverDisconnectedHistory() {
+    let active = Device(address: "AA:02", name: "AirPods", connected: true)
+    let recent = Device(address: "AA:01", name: "AirPods Pro", lastUsed: Date())
+    #expect(select([recent, active], saved: recent.address) == active)
+}
+
+@Test func multipleConnectedDevicesUseRecency() {
+    let old = Device(address: "AA:01", name: "AirPods", connected: true, lastUsed: Date(timeIntervalSince1970: 10))
+    let recent = Device(address: "AA:02", name: "AirPods Pro", connected: true, lastUsed: Date(timeIntervalSince1970: 20))
+    #expect(select([old, recent]) == recent)
 }

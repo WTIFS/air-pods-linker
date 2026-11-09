@@ -26,6 +26,7 @@ class A2dpManager(private val context: Context) {
     private val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
     private var proxy: BluetoothProfile? = null
     private var target: BluetoothDevice? = null
+    private var observedConnections: Set<String> = emptySet()
     private var binding = false
     private var closed = false
     private var requestedConnection: Boolean? = null
@@ -72,6 +73,7 @@ class A2dpManager(private val context: Context) {
 
         override fun onServiceDisconnected(profile: Int) {
             proxy = null
+            observedConnections = emptySet()
             binding = false
             clearConnection()
             if (!closed) message = "Bluetooth service unavailable. Tap Refresh to retry."
@@ -116,14 +118,32 @@ class A2dpManager(private val context: Context) {
             val wasConnected = isConnected
             bluetoothOn = adapter?.isEnabled == true
             if (!bluetoothOn) {
+                observedConnections = emptySet()
                 clearConnection()
                 message = if (adapter == null) "This device does not support Bluetooth." else "Turn on Bluetooth in Settings."
                 return
             }
             val paired = adapter?.bondedDevices.orEmpty().sortedBy { it.address }
             val saved = preferences.getString("device_address", null)
-            target = paired.firstOrNull { it.address.equals(saved, ignoreCase = true) }
-                ?: paired.firstOrNull { it.name?.contains("airpods", ignoreCase = true) == true }
+            var recent = preferences.getString("recent_addresses", "").orEmpty()
+                .split(",").filter { address -> paired.any { it.address == address } }
+            val candidates = paired.map {
+                PairedDevice(it.address, it.name,
+                    proxy?.getConnectionState(it) == BluetoothProfile.STATE_CONNECTED)
+            }
+            val connected = candidates.filter {
+                it.connected && (it.name?.contains("airpods", ignoreCase = true) == true ||
+                    it.address.equals(saved, ignoreCase = true) || it.address in recent)
+            }.map { it.address }.toSet()
+            if (proxy != null) {
+                recent = recordConnections(recent, connected, observedConnections)
+                observedConnections = connected
+                preferences.edit().putString("recent_addresses", recent.joinToString(",")).apply()
+            }
+            val selected = selectRecentDevice(candidates, saved, recent)
+            // Keep an in-flight operation attached to the device it started on.
+            target = if (requestedConnection != null) paired.firstOrNull { it.address == previousTarget }
+                else paired.firstOrNull { it.address == selected }
             if (previousTarget != target?.address) clearConnection()
             deviceName = target?.name ?: "No AirPods found"
             preferences.edit().putString("device_address", target?.address).apply()
